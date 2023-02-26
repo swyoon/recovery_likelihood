@@ -166,8 +166,101 @@ class Trainer:
         os.path.join(self.samples_dir, 'x_{}.png'.format(0)), n=8, m=8
       )
       self.logger.info('is_accepted={:.4f}'.format(is_accepted))
-      self.eval_fid_is(full=True)
+      # self.eval_fid_is(full=True)
 
+      cifar_ds = datasets.get_dataset('cifar10', tfds_data_dir='tensorflow_datasets')
+      cifar_ds = cifar_ds.eval_input_fn({'batch_size': 64})
+      svhn_ds = datasets.get_dataset('svhn', tfds_data_dir='tensorflow_datasets')
+      svhn_ds = svhn_ds.eval_input_fn({'batch_size': 64})
+
+      def roc_btw_arr(arr1, arr2):
+          """compute auroc between two score arrays.
+          arr1 contains the scores for label 1, arr2 contains scores for label 2"""
+          arr = tf.concat([arr1, arr2], axis=0)
+          labels = np.concatenate([tf.ones_like(arr1), tf.zeros_like(arr2)], axis=0)
+          return roc_auc_score(labels, arr)
+
+      # prediction for cifar
+      from tqdm import tqdm
+      l_pred = []
+      for batch in tqdm(cifar_ds):
+          x = data_preprocess(batch['image'])
+          # t is an array of 0s
+          t = tf.zeros(shape=[x.shape[0]], dtype=tf.float32)
+          l_pred.append(self.diffusion_ema.net(x, t, dropout=0.))
+          # l_pred.append(self.diffusion.net(x, t, dropout=0.))
+      l_cifar = tf.concat(l_pred, axis=0)
+
+      # prediction for svhn
+      l_pred = []
+      for batch in tqdm(svhn_ds):
+          x = data_preprocess(batch['image'])
+          # t is an array of 0s
+          t = tf.zeros(shape=[x.shape[0]], dtype=tf.float32)
+          l_pred.append(self.diffusion_ema.net(x, t, dropout=0.))
+          # l_pred.append(self.diffusion.net(x, t, dropout=0.))
+      l_svhn = tf.concat(l_pred, axis=0)
+
+      # prediction for cifar 100
+      cifar100_ds = datasets.get_dataset('cifar100', tfds_data_dir='tensorflow_datasets')
+      cifar100_ds = cifar100_ds.eval_input_fn({'batch_size': 64})
+      l_pred = []
+      for batch in tqdm(cifar100_ds):
+          x = data_preprocess(batch['image'])
+          t = tf.zeros(shape=[x.shape[0]], dtype=tf.float32)
+          l_pred.append(self.diffusion_ema.net(x, t, dropout=0.))
+          # l_pred.append(self.diffusion.net(x, t, dropout=0.))
+      l_cifar100 = tf.concat(l_pred, axis=0)
+
+      # prediction for celeba
+      celeba_ds = datasets.get_dataset('celeba')
+      celeba_ds = celeba_ds.eval_input_fn({'batch_size': 64})
+      l_pred = []
+      for batch in tqdm(celeba_ds):
+          x = data_preprocess(batch['image'])
+          t = tf.zeros(shape=[x.shape[0]], dtype=tf.float32)
+          l_pred.append(self.diffusion_ema.net(x, t, dropout=0.))
+      l_celeba = tf.concat(l_pred, axis=0)
+
+      # prediction for dtd 
+      dtd_ds = datasets.get_dataset('dtd', tfds_data_dir='tensorflow_datasets')
+      dtd_ds = dtd_ds.eval_input_fn({'batch_size': 64})
+      l_pred = []
+      for batch in tqdm(dtd_ds):
+          x = data_preprocess(batch['image'])
+          t = tf.zeros(shape=[x.shape[0]], dtype=tf.float32)
+          l_pred.append(self.diffusion_ema.net(x, t, dropout=0.))
+          # l_pred.append(self.diffusion.net(x, t, dropout=0.))
+      l_dtd = tf.concat(l_pred, axis=0)
+
+
+      # prediction for constant
+      constant_ds = datasets.get_dataset('constant')
+      constant_ds = constant_ds.eval_input_fn({'batch_size': 64})
+      l_pred = []
+      for batch in tqdm(constant_ds):
+          x = data_preprocess(batch['image'])
+          t = tf.zeros(shape=[x.shape[0]], dtype=tf.float32)
+          l_pred.append(self.diffusion_ema.net(x, t, dropout=0.))
+      l_constant = tf.concat(l_pred, axis=0)
+
+      # # compute auroc between l_svhn and l_cifar
+      from sklearn.metrics import roc_auc_score
+      auroc = roc_btw_arr(l_svhn, l_cifar)
+      self.logger.info('svhn auroc={:.4f}'.format(auroc))
+
+      auroc = roc_btw_arr(l_cifar100, l_cifar)
+      self.logger.info('cifar100 auroc={:.4f}'.format(auroc))
+
+      auroc = roc_btw_arr(l_celeba, l_cifar)
+      self.logger.info('celeba auroc={:.4f}'.format(auroc))
+
+      auroc = roc_btw_arr(l_dtd, l_cifar)
+      self.logger.info('dtd auroc={:.4f}'.format(auroc))
+
+
+      auroc = roc_btw_arr(l_constant, l_cifar)
+      self.logger.info('constant auroc={:.4f}'.format(auroc))
       return 0
 
     i_iter = i_iter_var.numpy()
@@ -178,6 +271,7 @@ class Trainer:
     start_time = time.time()
     self.logger.info('========== begin training =========')
     while i_iter < (self.hps.n_iters + 1):
+        # from pudb import set_trace; set_trace()
       loss, grads_mean, grads_max, disp_ts, loss_ts, f_ts, is_accepted = self.train_fn(next(ds_iter))
 
       if i_iter % 500 == 0:
@@ -326,4 +420,5 @@ class Trainer:
     self.logger.info('gpus={}'.format(self.hps.device))
     self.logger.info(self.hps)
 
+    print(num_device())
     self.n_per_replica = self.hps.n_batch_train // num_device()[0]

@@ -3,6 +3,7 @@
 All images are scaled to [0, 255] instead of [0, 1]
 """
 
+import custom_datasets.celeba
 import functools
 import tensorflow as tf
 import tensorflow_datasets as tfds
@@ -15,13 +16,13 @@ def pack(image, label):
 
 class SimpleDataset:
   DATASET_NAMES = ('cifar10', 'celebahq128', 'celebahq256', 'svhn', 'mnist', 'celeba', 'lsun_church64',
-                   'lsun_bedroom64', 'lsun_bedroom128', 'lsun_church128', 'cifar100')
+                   'lsun_bedroom64', 'lsun_bedroom128', 'lsun_church128', 'cifar100', 'dtd', 'constant')
 
   def __init__(self, name, tfds_data_dir):
     self._name = name
     self._data_dir = tfds_data_dir
     self._img_size = {'svhn': 32, 'mnist': 28, 'cifar10': 32, 'cifar100': 32, 'celebahq128': 128, 'celebahq256': 256, 'celeba': 32,
-                      'lsun_church64': 64, 'lsun_bedroom64': 64, 'lsun_church128': 128, 'lsun_bedroom128': 128}[name]
+            'lsun_church64': 64, 'lsun_bedroom64': 64, 'lsun_church128': 128, 'lsun_bedroom128': 128, 'dtd': 32, 'constant': 32}[name]
     if name == 'mnist':
       self._img_shape = [self._img_size, self._img_size, 1]
     else:
@@ -33,11 +34,14 @@ class SimpleDataset:
       'celebahq128': 'celeb_a_hq/128',
       'celebahq256': 'celeb_a_hq/256:2.0.0',
       'mnist': 'mnist:3.0.1',
-      'celeba': 'celeb_a',
+      # 'celeba': 'celeb_a',
+      'celeba': 'celeba',
       'lsun_church64': 'lsun/church_outdoor',
       'lsun_church128': 'lsun/church_outdoor',
       'lsun_bedroom64': 'lsun/bedroom',
-      'lsun_bedroom128': 'lsun/bedroom'
+      'lsun_bedroom128': 'lsun/bedroom',
+      'dtd': 'dtd',
+      'constant': 'constant',
     }[name]
     self.num_train_examples, self.num_eval_examples = {
       'svhn': (73257, 26032),
@@ -46,11 +50,13 @@ class SimpleDataset:
       'celebahq128': (30000, 0),
       'celebahq256': (30000, 0),
       'mnist': (60000, 10000),
-      'celeba': (162770, 0),
+      'celeba': (162770, 19962),
       'lsun_church64': (126227, 300),
       'lsun_church128': (126227, 300),
       'lsun_bedroom64': (3033042, 300),
       'lsun_bedroom128': (3033042, 300),
+      'dtd': (1880, 1880),
+      'constant': (1, 40000),
     }[name]
     self.num_classes = 1  # unconditional
     self.eval_split_name = {
@@ -60,11 +66,13 @@ class SimpleDataset:
       'celebahq128': None,
       'celebahq256': None,
       'mnist': 'test',
-      'celeba': None,
+      'celeba': 'eval',
       'lsun_church64': None,
       'lsun_church128': None,
       'lsun_bedroom64': None,
       'lsun_bedroom128': None,
+      'dtd': 'test',
+      'constant': 'test'
     }[name]
 
   @property
@@ -81,6 +89,8 @@ class SimpleDataset:
         crop = tf.minimum(tf.shape(img_)[0], tf.shape(img_)[1])
         img_ = img_[(tf.shape(img_)[0] - crop) // 2 : (tf.shape(img_)[0] + crop) // 2, (tf.shape(img_)[1] - crop) // 2 : (tf.shape(img_)[1] + crop) // 2]
         img_ = tf.image.resize(img_, [self._img_size, self._img_size], antialias=True)
+      elif self._name == 'dtd':
+          img_ = tf.image.resize(img_, [self._img_size, self._img_size], antialias=True)
       img_.set_shape(self._img_shape)
       return pack(image=img_, label=tf.constant(0, dtype=tf.int32))
 
@@ -118,6 +128,8 @@ DATASETS = {
   "lsun_bedroom128": functools.partial(SimpleDataset, name="lsun_bedroom128"),
   "lsun_church64": functools.partial(SimpleDataset, name="lsun_church64"),
   "lsun_church128": functools.partial(SimpleDataset, name="lsun_church128"),
+  "dtd": functools.partial(SimpleDataset, name="dtd"),
+  "constant": functools.partial(SimpleDataset, name="constant"),
 }
 
 
